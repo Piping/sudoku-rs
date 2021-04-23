@@ -50,13 +50,18 @@ pub fn solve_sudoku(game: &mut Sudoku) -> bool {
     match find_first_empty_spot(game) {
         None => true,
         Some((row, col)) => {
-            for option in options_for(game, row, col) {
-                let idx = (row * 9 + col) as usize;
-                game.board[idx] = option;
-                if solve_sudoku(game) {
-                    return true;
+            let bitset = options_for(game, row, col);
+            for option in (1..=9) {
+                if bitset & (1 << (option - 1)) != 0 {
+                    let idx = (row * 9 + col) as usize;
+                    // remove_option_for(game, row, col, option);
+                    game.board[idx] = option;
+                    if solve_sudoku(game) {
+                        return true;
+                    }
+                    // add_option_for(game, row, col, option);
+                    game.board[idx] = 0;
                 }
-                game.board[idx] = 0;
             }
             false
         }
@@ -72,7 +77,7 @@ fn find_first_empty_spot(game: &mut Sudoku) -> Option<(u8, u8)> {
     Some(((idx as u8 / 9), (idx as u8 % 9)))
 }
 
-fn options_for(game: &mut Sudoku, row: u8, col: u8) -> Vec<u8> {
+fn options_for_with_hashset(game: &mut Sudoku, row: u8, col: u8) -> Vec<u8> {
     let taken_nums_in_row: HashSet<u8> = game
         .board
         .iter()
@@ -123,3 +128,45 @@ fn options_for(game: &mut Sudoku, row: u8, col: u8) -> Vec<u8> {
 
     free_num_in_row
 }
+
+fn options_for(game: &mut Sudoku, row: u8, col: u8) -> u16 {
+    let idx = (row * 9 + col) as usize;
+
+    let mut taken_nums_in_row = 0;
+    for i in game
+        .board
+        .iter()
+        .skip(row as usize * 9)
+        .take(9)
+        .filter(|i| **i != 0)
+    {
+        taken_nums_in_row |= 1 << (i - 1);
+    }
+
+    let mut taken_nums_in_col = 0;
+    for i in game
+        .board
+        .iter()
+        .skip(col as usize)
+        .step_by(9)
+        .filter(|i| **i != 0)
+    {
+        taken_nums_in_col |= 1 << (i - 1);
+    }
+
+    let mut taken_nums_in_square = 0;
+    let start = (row / 3 * 27 + col / 3 * 3) as usize;
+    [
+        &game.board[start..start + 3],
+        &game.board[start + 9..start + 12],
+        &game.board[start + 18..start + 21],
+    ]
+    .iter()
+    .map(|slice| slice.iter())
+    .flatten()
+    .filter(|i| **i != 0)
+    .for_each(|i| taken_nums_in_square |= 1 << (i - 1));
+
+    !(taken_nums_in_square | taken_nums_in_col | taken_nums_in_row)
+}
+
